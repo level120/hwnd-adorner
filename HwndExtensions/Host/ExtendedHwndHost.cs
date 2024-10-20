@@ -1,8 +1,9 @@
 ﻿using System.Linq;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Interactivity;
 using System.Windows.Interop;
+
+using Microsoft.Xaml.Behaviors;
 
 namespace HwndExtensions.Host
 {
@@ -11,9 +12,9 @@ namespace HwndExtensions.Host
         #region Mouse Enter / Leave
 
         private readonly static DependencyPropertyKey IsMouseOverHwndPropertyKey = DependencyProperty.RegisterReadOnly(
-            "IsMouseOverHwnd", 
-            typeof(bool), 
-            typeof(ExtendedHwndHost), 
+            "IsMouseOverHwnd",
+            typeof(bool),
+            typeof(ExtendedHwndHost),
             new PropertyMetadata(false)
             );
         public readonly static DependencyProperty IsMouseOverHwndProperty = IsMouseOverHwndPropertyKey.DependencyProperty;
