@@ -1,32 +1,42 @@
 ﻿using System;
 using System.Windows.Controls;
 
-namespace HwndExtensions.Adorner
+namespace HwndExtensions.Adorner;
+
+/// <summary>
+/// Hwnd Adorner Manager
+/// </summary>
+public sealed class HwndAdornerManager : Decorator, IHwndAdornerManager, IDisposable
 {
-    public class HwndAdornerManager : Decorator, IHwndAdornerManager, IDisposable
+    private readonly HwndAdornerGroup _mHwndAdornerGroup;
+    private bool _mDisposed;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HwndAdornerManager"/> class.
+    /// </summary>
+    public HwndAdornerManager()
     {
-        private readonly HwndAdornerGroup m_hwndAdornerGroup;
-        private bool m_disposed;
+        _mHwndAdornerGroup = new HwndAdornerGroup(this);
+    }
 
-        HwndAdornerGroup IHwndAdornerManager.AdornerGroup
+    /// <inheritdoc />
+    HwndAdornerGroup IHwndAdornerManager.AdornerGroup
+    {
+        get
         {
-            get
+            if (_mDisposed)
             {
-                if(m_disposed)
-                    throw new ObjectDisposedException("this");
-                return  m_hwndAdornerGroup;
+                throw new ObjectDisposedException("this");
             }
-        }
 
-        public HwndAdornerManager()
-        {
-            m_hwndAdornerGroup = new HwndAdornerGroup(this);
+            return _mHwndAdornerGroup;
         }
+    }
 
-        public void Dispose()
-        {
-            m_disposed = true;
-            m_hwndAdornerGroup.Dispose();
-        }
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _mDisposed = true;
+        _mHwndAdornerGroup.Dispose();
     }
 }

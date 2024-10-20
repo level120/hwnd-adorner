@@ -3,66 +3,72 @@ using HwndExtensions.Utils;
 
 using Microsoft.Xaml.Behaviors;
 
-namespace HwndExtensions.Host
+namespace HwndExtensions.Host;
+
+/// <summary>
+/// Connect to Host Manager Behavior
+/// </summary>
+/// <typeparam name="T">Type</typeparam>
+public class ConnectToHostManagerBehavior<T> : Behavior<T>
+    where T : FrameworkElement, IHwndHolder
 {
-    public class ConnectToHostManagerBehavior<T> : Behavior<T> where T : FrameworkElement, IHwndHolder
+    private IHwndHostManager? _mHostManager;
+
+    /// <inheritdoc />
+    protected override void OnAttached()
     {
-        private IHwndHostManager m_hostManager;
+        base.OnAttached();
 
-        protected override void OnAttached()
+        AssociatedObject.Loaded += OnLoaded;
+        AssociatedObject.Unloaded += OnUnloaded;
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetaching()
+    {
+        DisconnectFromManager();
+
+        AssociatedObject.Loaded -= OnLoaded;
+        AssociatedObject.Unloaded -= OnUnloaded;
+
+        base.OnDetaching();
+    }
+
+    private void ConnectToManager(IHwndHostManager? manager)
+    {
+        if (manager != null)
         {
-            base.OnAttached();
-
-            AssociatedObject.Loaded += OnLoaded;
-            AssociatedObject.Unloaded += OnUnloaded;
+            _mHostManager = manager;
+            _mHostManager.HwndHostGroup.AddHost(AssociatedObject);
         }
-
-        private void ConnectToManager(IHwndHostManager manager)
+        else
         {
-            if (manager != null)
-            {
-                m_hostManager = manager;
-                m_hostManager.HwndHostGroup.AddHost(AssociatedObject);
-            }
-
-            else
-            {
-                m_hostManager = null;
-            }
+            _mHostManager = null;
         }
+    }
 
-        private void DisconnectFromManager()
+    private void DisconnectFromManager()
+    {
+        if (_mHostManager != null)
         {
-            if (m_hostManager != null)
-            {
-                m_hostManager.HwndHostGroup.RemoveHost(AssociatedObject);
-                m_hostManager = null;
-            }
+            _mHostManager.HwndHostGroup.RemoveHost(AssociatedObject);
+            _mHostManager = null;
         }
+    }
 
-        private void OnLoaded(object sender, RoutedEventArgs routedEventArgs)
-        {
-            var manager = WPFTreeExtensions.TryFindVisualAncestor<IHwndHostManager>(AssociatedObject);
-            if (m_hostManager != manager)
-            {
-                DisconnectFromManager();
-                ConnectToManager(manager);
-            }
-        }
+    private void OnLoaded(object sender, RoutedEventArgs routedEventArgs)
+    {
+        var manager = WpfTreeExtensions.TryFindVisualAncestor<IHwndHostManager>(AssociatedObject);
 
-        private void OnUnloaded(object sender, RoutedEventArgs routedEventArgs)
-        {
-            DisconnectFromManager();
-        }
-
-        protected override void OnDetaching()
+        if (_mHostManager != manager)
         {
             DisconnectFromManager();
-
-            AssociatedObject.Loaded -= OnLoaded;
-            AssociatedObject.Unloaded -= OnUnloaded;
-
-            base.OnDetaching();
+            ConnectToManager(manager);
         }
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs routedEventArgs)
+    {
+        DisconnectFromManager();
     }
 }

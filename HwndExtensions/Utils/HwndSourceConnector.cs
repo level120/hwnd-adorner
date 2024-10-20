@@ -2,85 +2,107 @@
 using System.Windows;
 using System.Windows.Interop;
 
-namespace HwndExtensions.Utils
+namespace HwndExtensions.Utils;
+
+/// <summary>
+/// A class for managing the connection of an UIElement to its HwndSouce container.
+/// Notifying on any HwndSouce change.
+/// </summary>
+public abstract class HwndSourceConnector : IDisposable
 {
+    private readonly UIElement _mConnector;
+
     /// <summary>
-    /// A class for managing the connection of an UIElement to its HwndSouce container.
-    /// Notifying on any HwndSouce change.
+    /// Initializes a new instance of the <see cref="HwndSourceConnector"/> class.
     /// </summary>
-    public abstract class HwndSourceConnector : IDisposable
+    /// <param name="connector">connector</param>
+    protected HwndSourceConnector(UIElement connector)
     {
-        private readonly UIElement m_connector;
-        private bool m_activated;
+        _mConnector = connector;
+    }
 
-        protected HwndSourceConnector(UIElement connector)
+    /// <summary>
+    /// Activated
+    /// </summary>
+    protected bool Activated { get; private set; }
+
+    /// <inheritdoc cref="Dispose"/>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// OnSourceDisconnected
+    /// </summary>
+    /// <param name="disconnectedSource">disconnectedSource</param>
+    protected abstract void OnSourceDisconnected(HwndSource disconnectedSource);
+
+    /// <summary>
+    /// OnSourceConnected
+    /// </summary>
+    /// <param name="connectedSource">connectedSource</param>
+    protected abstract void OnSourceConnected(HwndSource connectedSource);
+
+    /// <inheritdoc cref="Dispose(bool)"/>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
         {
-            m_connector = connector;
+            Deactivate();
+        }
+    }
+
+    /// <summary>
+    /// Activate
+    /// </summary>
+    protected void Activate()
+    {
+        if (Activated)
+        {
+            return;
         }
 
-        protected void Activate()
+        if (PresentationSource.FromVisual(_mConnector) is HwndSource hwndSource)
         {
-            if (m_activated) return;
-
-            var hwndSource = PresentationSource.FromVisual(m_connector) as HwndSource;
-            if (hwndSource != null)
-            {
-                OnSourceConnected(hwndSource);
-            }
-
-            PresentationSource.AddSourceChangedHandler(m_connector, OnSourceChanged);
-            m_activated = true;
+            OnSourceConnected(hwndSource);
         }
 
-        protected void Deactivate()
+        PresentationSource.AddSourceChangedHandler(_mConnector, OnSourceChanged);
+
+        Activated = true;
+    }
+
+    /// <summary>
+    /// Deactivate
+    /// </summary>
+    protected void Deactivate()
+    {
+        if (!Activated)
         {
-            if (!m_activated) return;
-
-            var hwndSource = PresentationSource.FromVisual(m_connector) as HwndSource;
-            if (hwndSource != null)
-            {
-                OnSourceDisconnected(hwndSource);
-            }
-
-            PresentationSource.RemoveSourceChangedHandler(m_connector, OnSourceChanged);
-            m_activated = false;
+            return;
         }
 
-        protected bool Activated
+        if (PresentationSource.FromVisual(_mConnector) is HwndSource hwndSource)
         {
-            get { return m_activated; }
+            OnSourceDisconnected(hwndSource);
         }
 
-        private void OnSourceChanged(object sender, SourceChangedEventArgs args)
-        {
-            var hwndSource = args.OldSource as HwndSource;
-            if (hwndSource != null)
-            {
-                OnSourceDisconnected(hwndSource);
-            }
+        PresentationSource.RemoveSourceChangedHandler(_mConnector, OnSourceChanged);
+        Activated = false;
+    }
 
-            hwndSource = args.NewSource as HwndSource;
-            if (hwndSource != null)
-            {
-                OnSourceConnected(hwndSource);
-            }
+    private void OnSourceChanged(object sender, SourceChangedEventArgs args)
+    {
+        if (args.OldSource is HwndSource oldHwndSource)
+        {
+            OnSourceDisconnected(oldHwndSource);
         }
 
-        protected abstract void OnSourceDisconnected(HwndSource disconnectedSource);
-        protected abstract void OnSourceConnected(HwndSource connectedSource);
-
-        protected virtual void Dispose(bool disposing)
+        if (args.NewSource is HwndSource newHwndSource)
         {
-            if (disposing)
-            {
-                Deactivate();
-            }
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            OnSourceConnected(newHwndSource);
         }
     }
 }

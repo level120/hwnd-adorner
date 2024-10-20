@@ -1,106 +1,77 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 
-namespace HwndExtensions.Utils
+namespace HwndExtensions.Utils;
+
+/// <summary>
+/// Single Child Enumerator
+/// </summary>
+public class SingleChildEnumerator : IEnumerator
 {
-    public static class EnumerableExtensions
-    {
-        private static IEnumerable<int> ReverseRange(int start, int count)
-        {
-            if (count < 0)
-                throw new ArgumentOutOfRangeException();
+    private readonly object? _mChild;
+    private State _mState;
 
-            for (int i = start + count - 1; i >= start; --i)
-                yield return i;
-        }
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SingleChildEnumerator"/> class.
+    /// </summary>
+    /// <param name="child">child</param>
+    public SingleChildEnumerator(object? child)
+    {
+        _mChild = child;
     }
 
-    public class EmptyEnumerator : IEnumerator
+    private enum State
     {
-        private static IEnumerator m_instance;
+        Reset,
+        Current,
+        Finished,
+    }
 
-        public static IEnumerator Instance
+    /// <summary>
+    /// Gets Current
+    /// </summary>
+    public object? Current
+    {
+        get
         {
-            get
-            {
-                if (m_instance == null)
-                    m_instance = (IEnumerator)new EmptyEnumerator();
-                return m_instance;
-            }
-        }
-
-        public object Current
-        {
-            get
+            if (_mState != State.Current)
             {
                 throw new InvalidOperationException();
             }
-        }
 
-        private EmptyEnumerator()
-        {
-        }
-
-        public void Reset()
-        {
-        }
-
-        public bool MoveNext()
-        {
-            return false;
+            return _mChild;
         }
     }
 
-    public class SingleChildEnumerator : IEnumerator
+    /// <summary>
+    /// Reset
+    /// </summary>
+    public void Reset()
     {
-        private enum State
+        _mState = State.Reset;
+    }
+
+    /// <summary>
+    /// Move Next
+    /// </summary>
+    /// <returns>Result</returns>
+    public bool MoveNext()
+    {
+        switch (_mState)
         {
-            Reset, Current, Finished
-        }
+            case State.Reset:
+                _mState = State.Current;
+                return true;
 
-        private readonly object m_child;
-        private State m_state;
+            case State.Current:
+                _mState = State.Finished;
+                return false;
 
-        public SingleChildEnumerator(object child)
-        {
-            m_child = child;
-        }
+            case State.Finished:
+                return false;
 
-        public object Current
-        {
-            get
-            {
-                if (m_state == State.Current)
-                    return m_child;
-
-                throw new InvalidOperationException();
-            }
-        }
-
-        public void Reset()
-        {
-            m_state = State.Reset;
-        }
-
-        public bool MoveNext()
-        {
-            switch (m_state)
-            {
-                case State.Reset:
-                    m_state = State.Current;
-                    return true;
-
-                case State.Current:
-                    m_state = State.Finished;
-                    return false;
-
-                case State.Finished:
-                    return false;
-
-                default:
-                    return false;
-            }
+            default:
+                return false;
         }
     }
 }

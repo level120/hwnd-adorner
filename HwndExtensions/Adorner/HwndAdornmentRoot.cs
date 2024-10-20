@@ -1,15 +1,21 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 
-namespace HwndExtensions.Adorner
-{
-    internal class HwndAdornmentRoot : ContentControl
-    {
-        public DependencyObject UIParentCore { get; set; }
+namespace HwndExtensions.Adorner;
 
-        protected override DependencyObject GetUIParentCore()
-        {
-            return UIParentCore ?? base.GetUIParentCore();
-        }
+/// <summary>
+/// Hwnd Adornment Root
+/// </summary>
+internal class HwndAdornmentRoot : ContentControl
+{
+    /// <summary>
+    /// UI Parent Core
+    /// </summary>
+    public DependencyObject? UIParentCore { get; set; }
+
+    /// <inheritdoc />
+    protected override DependencyObject? GetUIParentCore()
+    {
+        return UIParentCore ?? base.GetUIParentCore();
     }
 }

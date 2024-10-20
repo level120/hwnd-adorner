@@ -5,157 +5,185 @@ using System.Windows.Interop;
 
 using Microsoft.Xaml.Behaviors;
 
-namespace HwndExtensions.Host
+namespace HwndExtensions.Host;
+
+/// <summary>
+/// Extended HwndHost
+/// </summary>
+public abstract class ExtendedHwndHost : HwndHost, IHwndHolder
 {
-    public abstract class ExtendedHwndHost : HwndHost, IHwndHolder
+    private Rect _mLatestBounds;
+    private Rect _mFreezedBounds;
+    private bool _mBoundsAreFreezed;
+
+    /// <summary>
+    /// IsMouseOverHwnd Property
+    /// </summary>
+    public static readonly DependencyProperty IsMouseOverHwndProperty = IsMouseOverHwndPropertyKey.DependencyProperty;
+
+    /// <summary>
+    /// ConnectsToHostManager Property
+    /// </summary>
+    public static readonly DependencyProperty ConnectsToHostManagerProperty = DependencyProperty.Register(
+        nameof(ConnectsToHostManager), typeof(bool), typeof(ExtendedHwndHost), new PropertyMetadata(false, OnConnectsToHostManagerChanged));
+
+    /// <summary>
+    /// IsMouseOverHwnd Property Key
+    /// </summary>
+    private static readonly DependencyPropertyKey IsMouseOverHwndPropertyKey = DependencyProperty.RegisterReadOnly(
+        nameof(IsMouseOverHwnd),
+        typeof(bool),
+        typeof(ExtendedHwndHost),
+        new PropertyMetadata(false));
+
+    static ExtendedHwndHost()
     {
-        #region Mouse Enter / Leave
+        EventManager.RegisterClassHandler(typeof(ExtendedHwndHost), HwndExtensions.HwndMouseEnterEvent, new MouseEventHandler(OnHwndMouseEnterOrLeave));
+        EventManager.RegisterClassHandler(typeof(ExtendedHwndHost), HwndExtensions.HwndMouseLeaveEvent, new MouseEventHandler(OnHwndMouseEnterOrLeave));
+    }
 
-        private readonly static DependencyPropertyKey IsMouseOverHwndPropertyKey = DependencyProperty.RegisterReadOnly(
-            "IsMouseOverHwnd",
-            typeof(bool),
-            typeof(ExtendedHwndHost),
-            new PropertyMetadata(false)
-            );
-        public readonly static DependencyProperty IsMouseOverHwndProperty = IsMouseOverHwndPropertyKey.DependencyProperty;
+    /// <summary>
+    /// Gets or sets the ConnectsToHostManager
+    /// </summary>
+    public bool ConnectsToHostManager
+    {
+        get => (bool)GetValue(ConnectsToHostManagerProperty);
+        set => SetValue(ConnectsToHostManagerProperty, value);
+    }
 
-        public bool IsMouseOverHwnd
+    /// <summary>
+    /// Gets IsMouseOverHwnd
+    /// </summary>
+    public bool IsMouseOverHwnd => (bool)GetValue(IsMouseOverHwndProperty);
+
+    /// <summary>
+    /// Gets LatestHwndBounds
+    /// </summary>
+    public Rect LatestHwndBounds => _mLatestBounds;
+
+    /// <summary>
+    /// Gets FreezedHwndBounds
+    /// </summary>
+    public Rect FreezedHwndBounds => _mFreezedBounds;
+
+    /// <summary>
+    /// Collapsed Hwnd
+    /// </summary>
+    /// <param name="freezeBounds">freezeBounds</param>
+    public void CollapseHwnd(bool freezeBounds = false)
+    {
+        if (_mBoundsAreFreezed)
         {
-            get { return (bool)GetValue(IsMouseOverHwndProperty); }
+            return;
         }
 
-        static ExtendedHwndHost()
+        if (freezeBounds)
         {
-            EventManager.RegisterClassHandler(typeof(ExtendedHwndHost), HwndExtensions.HwndMouseEnterEvent, new MouseEventHandler(OnHwndMouseEnterOrLeave));
-            EventManager.RegisterClassHandler(typeof(ExtendedHwndHost), HwndExtensions.HwndMouseLeaveEvent, new MouseEventHandler(OnHwndMouseEnterOrLeave));
+            FreezeHwndBounds();
+        }
+        else
+        {
+            _mBoundsAreFreezed = false;
         }
 
-        private static void OnHwndMouseEnterOrLeave(object sender, MouseEventArgs e)
+        var collapsedBox = new Rect(_mLatestBounds.Location, Size.Empty);
+
+        OnWindowPositionChangedOverride(collapsedBox);
+    }
+
+    /// <summary>
+    /// Freeze Hwnd Bounds
+    /// </summary>
+    public void FreezeHwndBounds()
+    {
+        _mBoundsAreFreezed = true;
+        _mFreezedBounds = _mLatestBounds;
+    }
+
+    /// <summary>
+    /// Expand Hwnd
+    /// </summary>
+    public void ExpandHwnd()
+    {
+        _mBoundsAreFreezed = false;
+
+        OnWindowPositionChangedOverride(_mLatestBounds);
+    }
+
+    /// <summary>
+    /// Expand On Next Reposition
+    /// </summary>
+    public void ExpandOnNextReposition()
+    {
+        _mBoundsAreFreezed = false;
+    }
+
+    /// <summary>
+    /// <see cref="OnWindowPositionChanged"/> Override
+    /// </summary>
+    /// <param name="rcBoundingBox">rcBoundingBox</param>
+    protected virtual void OnWindowPositionChangedOverride(Rect rcBoundingBox)
+    {
+        base.OnWindowPositionChanged(rcBoundingBox);
+    }
+
+    /// <inheritdoc />
+    protected sealed override void OnWindowPositionChanged(Rect rcBoundingBox)
+    {
+        _mLatestBounds = rcBoundingBox;
+
+        if (_mBoundsAreFreezed)
         {
-            var host = (ExtendedHwndHost) sender;
-            host.SetValue(IsMouseOverHwndPropertyKey, e.RoutedEvent == HwndExtensions.HwndMouseEnterEvent);
+            return;
         }
 
-        #endregion
+        OnWindowPositionChangedOverride(rcBoundingBox);
+    }
 
-        #region ConnectsToHostManager
+    private static void OnHwndMouseEnterOrLeave(object sender, MouseEventArgs e)
+    {
+        var host = (ExtendedHwndHost) sender;
+        host.SetValue(IsMouseOverHwndPropertyKey, e.RoutedEvent == HwndExtensions.HwndMouseEnterEvent);
+    }
 
-        public static readonly DependencyProperty ConnectsToHostManagerProperty = DependencyProperty.Register(
-            "ConnectsToHostManager", typeof(bool), typeof(ExtendedHwndHost), new PropertyMetadata(false, OnConnectsToHostManagerChanged));
+    private static void OnConnectsToHostManagerChanged(DependencyObject depObj, DependencyPropertyChangedEventArgs args)
+    {
+        var host = (ExtendedHwndHost)depObj;
 
-        private static void OnConnectsToHostManagerChanged(DependencyObject depObj, DependencyPropertyChangedEventArgs args)
+        if ((bool)args.NewValue)
         {
-            var host = (ExtendedHwndHost)depObj;
-            if ((bool)args.NewValue)
-            {
-                host.AttachConnectToHostManagerBehavior();
-            }
-
-            else
-            {
-                host.DettachConnectToHostManagerBehavior();
-            }
+            host.AttachConnectToHostManagerBehavior();
         }
-
-        public bool ConnectsToHostManager
+        else
         {
-            get { return (bool)GetValue(ConnectsToHostManagerProperty); }
-            set { SetValue(ConnectsToHostManagerProperty, value); }
+            host.DettachConnectToHostManagerBehavior();
         }
+    }
 
-        private void AttachConnectToHostManagerBehavior()
+    private void AttachConnectToHostManagerBehavior()
+    {
+        var connectBehavior = SearchForConnectBehavior();
+
+        if (connectBehavior == null)
         {
-            var connectBehavior = SearchForConnectBehavior();
-            if (connectBehavior == null)
-            {
-                Interaction.GetBehaviors(this).Add(new ConnectToHostManagerBehavior<ExtendedHwndHost>());
-            }
+            Interaction.GetBehaviors(this).Add(new ConnectToHostManagerBehavior<ExtendedHwndHost>());
         }
+    }
 
-        private void DettachConnectToHostManagerBehavior()
+    private void DettachConnectToHostManagerBehavior()
+    {
+        var connectBehavior = SearchForConnectBehavior();
+
+        if (connectBehavior != null)
         {
-            var connectBehavior = SearchForConnectBehavior();
-            if (connectBehavior != null)
-            {
-                Interaction.GetBehaviors(this).Remove(connectBehavior);
-            }
+            Interaction.GetBehaviors(this).Remove(connectBehavior);
         }
+    }
 
-        private ConnectToHostManagerBehavior<ExtendedHwndHost> SearchForConnectBehavior()
-        {
-            return Interaction.GetBehaviors(this)
-                        .OfType<ConnectToHostManagerBehavior<ExtendedHwndHost>>()
-                        .FirstOrDefault();
-        }
-
-        #endregion
-
-        #region IHwndHolder Imp
-
-        private Rect m_latestBounds;
-        private Rect m_freezedBounds;
-        private bool m_boundsAreFreezed;
-
-        public void CollapseHwnd(bool freezeBounds = false)
-        {
-            if(m_boundsAreFreezed) return;
-
-            if (freezeBounds)
-            {
-                FreezeHwndBounds();
-            }
-
-            else
-            {
-                m_boundsAreFreezed = false;
-            }
-
-            Rect collapsedBox = new Rect(m_latestBounds.Location, new Size());
-
-            OnWindowPositionChangedOverride(collapsedBox);
-        }
-
-        public void FreezeHwndBounds()
-        {
-            m_boundsAreFreezed = true;
-            m_freezedBounds = m_latestBounds;
-        }
-
-        public void ExpandHwnd()
-        {
-            m_boundsAreFreezed = false;
-
-            OnWindowPositionChangedOverride(m_latestBounds);
-        }
-
-        public void ExpandOnNextReposition()
-        {
-            m_boundsAreFreezed = false;
-        }
-
-        public Rect LatestHwndBounds
-        {
-            get { return m_latestBounds; }
-        }
-
-        public Rect FreezedHwndBounds
-        {
-            get { return m_freezedBounds; }
-        }
-
-        protected sealed override void OnWindowPositionChanged(Rect rcBoundingBox)
-        {
-            m_latestBounds = rcBoundingBox;
-            if (m_boundsAreFreezed) return;
-
-            OnWindowPositionChangedOverride(rcBoundingBox);
-        }
-
-        protected virtual void OnWindowPositionChangedOverride(Rect rcBoundingBox)
-        {
-            base.OnWindowPositionChanged(rcBoundingBox);
-        }
-
-        #endregion
+    private ConnectToHostManagerBehavior<ExtendedHwndHost>? SearchForConnectBehavior()
+    {
+        return Interaction.GetBehaviors(this)
+            .OfType<ConnectToHostManagerBehavior<ExtendedHwndHost>>()
+            .FirstOrDefault();
     }
 }

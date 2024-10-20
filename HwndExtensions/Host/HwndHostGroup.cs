@@ -5,134 +5,185 @@ using System.Windows;
 using System.Windows.Threading;
 using HwndExtensions.Utils;
 
-namespace HwndExtensions.Host
+namespace HwndExtensions.Host;
+
+/// <summary>
+/// A class for managing positions for a group of Hwnd's.
+/// </summary>
+public class HwndHostGroup : IDisposable
 {
+    private readonly FrameworkElement _mConnector;
+    private readonly List<IHwndHolder> _mHwndHolders;
+    private readonly PointDistanceComparer _mComparer;
+    private bool _mExpandingAsync;
+
     /// <summary>
-    /// A class for managing positions for a group of Hwnd's. 
+    /// Initializes a new instance of the <see cref="HwndHostGroup"/> class.
     /// </summary>
-    public class HwndHostGroup
+    /// <param name="connector">connector</param>
+    public HwndHostGroup(FrameworkElement connector)
     {
-        private readonly FrameworkElement m_connector;
-        private readonly List<IHwndHolder> m_hwndHolders;
-        private readonly PointDistanceComparer m_comparer;
-        private bool m_expandingAsync;
+        _mConnector = connector;
+        _mHwndHolders = new List<IHwndHolder>();
+        _mComparer = new PointDistanceComparer();
 
-        public HwndHostGroup(FrameworkElement connector)
+        connector.Loaded += OnConnectorLoaded;
+        connector.Unloaded += OnConnectorUnloaded;
+    }
+
+    /// <summary>
+    /// Add Host
+    /// </summary>
+    /// <param name="hwndHolder">hwndHolder</param>
+    public void AddHost(IHwndHolder hwndHolder)
+    {
+        if (hwndHolder == null)
         {
-            m_connector = connector;
-            m_hwndHolders = new List<IHwndHolder>();
-            m_comparer = new PointDistanceComparer();
-
-            connector.Loaded += OnConnectorLoaded;
-            connector.Unloaded += OnConnectorUnloaded;
+            throw new ArgumentNullException(nameof(hwndHolder));
         }
 
-        private void OnConnectorLoaded(object sender, RoutedEventArgs routedEventArgs)
+        if (!_mHwndHolders.Contains(hwndHolder))
         {
-            ExpandHwndsAsync();
+            _mHwndHolders.Add(hwndHolder);
         }
 
-        private void OnConnectorUnloaded(object sender, RoutedEventArgs routedEventArgs)
+        if (!_mExpandingAsync)
         {
-            CollapseHwnds(true);
+            // Making sure we dont accidently stay with a collapsed hwnd
+            hwndHolder.ExpandHwnd();
+        }
+    }
+
+    /// <summary>
+    /// Remove Host
+    /// </summary>
+    /// <param name="hwndHolder">hwndHolder</param>
+    public void RemoveHost(IHwndHolder hwndHolder)
+    {
+        if (hwndHolder == null)
+        {
+            throw new ArgumentNullException(nameof(hwndHolder));
         }
 
-        public void AddHost(IHwndHolder hwndHolder)
-        {
-            if (hwndHolder == null)
-                throw new ArgumentNullException("hwndHolder");
+        _mHwndHolders.Remove(hwndHolder);
+    }
 
-            if (!m_hwndHolders.Contains(hwndHolder))
+    /// <summary>
+    /// Collapse Hwnds
+    /// </summary>
+    /// <param name="freezeBounds">freezeBounds</param>
+    public void CollapseHwnds(bool freezeBounds = false)
+    {
+        if (_mHwndHolders.Count == 0)
+        {
+            return;
+        }
+
+        var latestBounds = _mHwndHolders.Select(h => h.LatestHwndBounds)
+                                        .Aggregate(Rect.Union);
+
+        _mComparer.RelativeTo = latestBounds.BottomRight;
+
+        foreach (var hostHolder in _mHwndHolders.OrderBy(h => h.LatestHwndBounds.BottomRight, _mComparer))
+        {
+            hostHolder.CollapseHwnd(freezeBounds);
+        }
+    }
+
+    /// <summary>
+    /// Freeze Hwnds Bounds
+    /// </summary>
+    public void FreezeHwndsBounds()
+    {
+        if (_mHwndHolders.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var hostHolder in _mHwndHolders)
+        {
+            hostHolder.FreezeHwndBounds();
+        }
+    }
+
+    /// <summary>
+    /// Expand Hwnds
+    /// </summary>
+    public void ExpandHwnds()
+    {
+        if (_mHwndHolders.Count == 0)
+        {
+            return;
+        }
+
+        var latestBounds = _mHwndHolders.Select(h => h.LatestHwndBounds)
+                                        .Aggregate(Rect.Union);
+
+        _mComparer.RelativeTo = latestBounds.TopLeft;
+
+        foreach (var hostHolder in _mHwndHolders.OrderBy(h => h.LatestHwndBounds.TopLeft, _mComparer))
+        {
+            hostHolder.ExpandHwnd();
+        }
+    }
+
+    /// <summary>
+    /// Refresh Hwnds Async
+    /// </summary>
+    public void RefreshHwndsAsync()
+    {
+        CollapseHwnds(true);
+        ExpandHwndsAsync();
+    }
+
+    /// <summary>
+    /// Expand Hwnds Async
+    /// </summary>
+    public void ExpandHwndsAsync()
+    {
+        if (_mExpandingAsync)
+        {
+            return;
+        }
+
+        _mExpandingAsync = true;
+
+        DispatchUI.OnUIThreadAsync(
+            () =>
             {
-                m_hwndHolders.Add(hwndHolder);
-            }
+                ExpandHwnds();
+                _mExpandingAsync = false;
+            },
+            DispatcherPriority.Input);
+    }
 
-            if (!m_expandingAsync)
-            {
-                // Making sure we dont accidently stay with a collapsed hwnd
-                hwndHolder.ExpandHwnd();
-            }
-        }
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _mConnector.Loaded -= OnConnectorLoaded;
+        _mConnector.Unloaded -= OnConnectorUnloaded;
+    }
 
-        public void RemoveHost(IHwndHolder hwndHolder)
+    private void OnConnectorLoaded(object sender, RoutedEventArgs routedEventArgs)
+    {
+        ExpandHwndsAsync();
+    }
+
+    private void OnConnectorUnloaded(object sender, RoutedEventArgs routedEventArgs)
+    {
+        CollapseHwnds(true);
+    }
+
+    private class PointDistanceComparer : IComparer<Point>
+    {
+        public Point RelativeTo { get; set; }
+
+        public int Compare(Point p1, Point p2)
         {
-            m_hwndHolders.Remove(hwndHolder);
-        }
+            var p1Distance = Math.Sqrt(Math.Pow(p1.X - RelativeTo.X, 2) + Math.Pow(p1.Y - RelativeTo.Y, 2));
+            var p2Distance = Math.Sqrt(Math.Pow(p2.X - RelativeTo.X, 2) + Math.Pow(p2.Y - RelativeTo.Y, 2));
 
-        public void CollapseHwnds(bool freezeBounds = false)
-        {
-            if (m_hwndHolders.Count == 0) return;
-
-            Rect latestBounds = m_hwndHolders.Select(h => h.LatestHwndBounds).Aggregate(Rect.Union);
-            m_comparer.RelativeTo = latestBounds.BottomRight;
-
-            foreach (var hostHolder in m_hwndHolders.OrderBy(h => h.LatestHwndBounds.BottomRight, m_comparer))
-            {
-                hostHolder.CollapseHwnd(freezeBounds);
-            }
-        }
-
-        public void FreezeHwndsBounds()
-        {
-            if (m_hwndHolders.Count == 0) return;
-
-            foreach (var hostHolder in m_hwndHolders)
-            {
-                hostHolder.FreezeHwndBounds();
-            }
-        }
-
-        public void ExpandHwnds()
-        {
-            if (m_hwndHolders.Count == 0) return;
-
-            Rect latestBounds = m_hwndHolders.Select(h => h.LatestHwndBounds).Aggregate(Rect.Union);
-            m_comparer.RelativeTo = latestBounds.TopLeft;
-
-            foreach (var hostHolder in m_hwndHolders.OrderBy(h => h.LatestHwndBounds.TopLeft, m_comparer))
-            {
-                hostHolder.ExpandHwnd();
-            }
-        }
-
-        public void RefreshHwndsAsync()
-        {
-            CollapseHwnds(true);
-            ExpandHwndsAsync();
-        }
-
-        public void ExpandHwndsAsync()
-        {
-            if (m_expandingAsync) return;
-            m_expandingAsync = true;
-
-            DispatchUI.OnUIThreadAsync(
-                () =>
-                {
-                    ExpandHwnds();
-                    m_expandingAsync = false;
-                },
-                DispatcherPriority.Input
-                );
-        }
-
-        public void Dispose()
-        {
-            m_connector.Loaded -= OnConnectorLoaded;
-            m_connector.Unloaded -= OnConnectorUnloaded;
-        }
-
-        private class PointDistanceComparer : IComparer<Point>
-        {
-            public Point RelativeTo { get; set; }
-
-            public int Compare(Point p1, Point p2)
-            {
-                double p1_distance = Math.Sqrt(Math.Pow(p1.X - RelativeTo.X, 2) + Math.Pow(p1.Y - RelativeTo.Y, 2));
-                double p2_distance = Math.Sqrt(Math.Pow(p2.X - RelativeTo.X, 2) + Math.Pow(p2.Y - RelativeTo.Y, 2));
-
-                return p1_distance.CompareTo(p2_distance);
-            }
+            return p1Distance.CompareTo(p2Distance);
         }
     }
 }

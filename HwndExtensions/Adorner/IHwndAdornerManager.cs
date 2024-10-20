@@ -1,7 +1,12 @@
-﻿namespace HwndExtensions.Adorner
+﻿namespace HwndExtensions.Adorner;
+
+/// <summary>
+/// Hwnd Adorner Manager Interface
+/// </summary>
+internal interface IHwndAdornerManager
 {
-    internal interface IHwndAdornerManager
-    {
-        HwndAdornerGroup AdornerGroup { get; }
-    }
+    /// <summary>
+    /// Adorner Group
+    /// </summary>
+    HwndAdornerGroup AdornerGroup { get; }
 }

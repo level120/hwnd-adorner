@@ -1,32 +1,47 @@
 ﻿using System;
 using System.Windows.Controls;
 
-namespace HwndExtensions.Host
+namespace HwndExtensions.Host;
+
+/// <summary>
+/// Hwnd Host Manager
+/// </summary>
+public sealed class HwndHostManager : Decorator, IHwndHostManager, IDisposable
 {
-    public class HwndHostManager : Decorator, IHwndHostManager
+    private readonly HwndHostGroup _mHostGroup;
+    private bool _mDisposed;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HwndHostManager"/> class.
+    /// </summary>
+    public HwndHostManager()
     {
-        private readonly HwndHostGroup m_hostGroup;
-        private bool m_disposed;
+        _mHostGroup = new HwndHostGroup(this);
+    }
 
-        public HwndHostGroup HwndHostGroup
+    /// <summary>
+    /// Hwnd Host Group
+    /// </summary>
+    public HwndHostGroup HwndHostGroup
+    {
+        get
         {
-            get
+            if (_mDisposed)
             {
-                if(m_disposed)
-                    throw new ObjectDisposedException("this");
-                return  m_hostGroup;
+                throw new ObjectDisposedException("this");
             }
-        }
 
-        public HwndHostManager()
-        {
-            m_hostGroup = new HwndHostGroup(this);
+            return _mHostGroup;
         }
+    }
 
-        public void Dispose()
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (!_mDisposed)
         {
-            m_disposed = true;
-            m_hostGroup.Dispose();
+            _mDisposed = true;
+            _mHostGroup.Dispose();
         }
     }
 }

@@ -1,86 +1,134 @@
 ﻿using System.Windows;
 using System.Windows.Media;
 
-namespace HwndExtensions.Utils
+namespace HwndExtensions.Utils;
+
+/// <summary>
+/// RECT
+/// </summary>
+internal struct RECT
 {
-    internal struct RECT
+    /// <summary>
+    /// Left
+    /// </summary>
+    public int left;
+
+    /// <summary>
+    /// Top
+    /// </summary>
+    public int top;
+
+    /// <summary>
+    /// Right
+    /// </summary>
+    public int right;
+
+    /// <summary>
+    /// Bottom
+    /// </summary>
+    public int bottom;
+}
+
+/// <summary>
+/// Rect Utility
+/// </summary>
+internal static class RectUtil
+{
+    /// <summary>
+    /// Double to Int
+    /// </summary>
+    /// <param name="val">val</param>
+    /// <returns>int value</returns>
+    public static int DoubleToInt(double val)
     {
-        public int left;
-        public int top;
-        public int right;
-        public int bottom;
+        return (0 < val) ? (int)(val + 0.5) : (int)(val - 0.5);
     }
 
-    internal static class RectUtil
+    /// <summary>
+    /// Element To Root
+    /// </summary>
+    /// <param name="rectElement">rectElement</param>
+    /// <param name="element">element</param>
+    /// <param name="presentationSource">presentationSource</param>
+    /// <returns><see cref="Rect"/></returns>
+    internal static Rect ElementToRoot(Rect rectElement, Visual element, PresentationSource presentationSource)
     {
-        internal static Rect ElementToRoot(Rect rectElement, Visual element, PresentationSource presentationSource)
+        var transformElementToRoot = element.TransformToAncestor(presentationSource.RootVisual);
+
+        return transformElementToRoot.TransformBounds(rectElement);
+    }
+
+    /// <summary>
+    /// Root To Client
+    /// </summary>
+    /// <param name="rectRoot">rectRoot</param>
+    /// <param name="presentationSource">presentationSource</param>
+    /// <returns><see cref="Rect"/></returns>
+    internal static Rect RootToClient(Rect rectRoot, PresentationSource presentationSource)
+    {
+        var target = presentationSource.CompositionTarget;
+        var matrixRootTransform = GetVisualTransform(target?.RootVisual);
+        var rectRootUntransformed = Rect.Transform(rectRoot, matrixRootTransform);
+        var matrixDpi = target?.TransformToDevice ?? Matrix.Identity;
+
+        return Rect.Transform(rectRootUntransformed, matrixDpi);
+    }
+
+    /// <summary>
+    /// Get Visual Transform
+    /// </summary>
+    /// <param name="visual">visual</param>
+    /// <returns><see cref="Matrix"/></returns>
+    internal static Matrix GetVisualTransform(Visual? visual)
+    {
+        if (visual == null)
         {
-            GeneralTransform transformElementToRoot = element.TransformToAncestor(presentationSource.RootVisual);
-            Rect rectRoot = transformElementToRoot.TransformBounds(rectElement);
-
-            return rectRoot;
-        }
-
-        internal static Rect RootToClient(Rect rectRoot, PresentationSource presentationSource)
-        {
-            CompositionTarget target = presentationSource.CompositionTarget;
-            Matrix matrixRootTransform = RectUtil.GetVisualTransform(target.RootVisual);
-            Rect rectRootUntransformed = Rect.Transform(rectRoot, matrixRootTransform);
-            Matrix matrixDPI = target.TransformToDevice;
-            Rect rectClient = Rect.Transform(rectRootUntransformed, matrixDPI);
-
-            return rectClient;
-        }
-
-        internal static Matrix GetVisualTransform(Visual v)
-        {
-            if (v != null)
-            {
-                Matrix m = Matrix.Identity;
-
-                Transform transform = VisualTreeHelper.GetTransform(v);
-                if (transform != null)
-                {
-                    Matrix cm = transform.Value;
-                    m = Matrix.Multiply(m, cm);
-                }
-
-                Vector offset = VisualTreeHelper.GetOffset(v);
-                m.Translate(offset.X, offset.Y);
-
-                return m;
-            }
-
             return Matrix.Identity;
         }
 
-        internal static RECT FromRect(Rect rect)
+        var matrix = Matrix.Identity;
+        var offset = VisualTreeHelper.GetOffset(visual);
+        var transform = VisualTreeHelper.GetTransform(visual);
+
+        if (transform != null)
         {
-            RECT rc = new RECT();
-
-            rc.top = DoubleToInt(rect.Y);
-            rc.left = DoubleToInt(rect.X);
-            rc.bottom = DoubleToInt(rect.Bottom);
-            rc.right = DoubleToInt(rect.Right);
-
-            return rc;
+            matrix = Matrix.Multiply(matrix, transform.Value);
         }
 
-        internal static Rect ToRect(RECT rc)
+        matrix.Translate(offset.X, offset.Y);
+
+        return matrix;
+    }
+
+    /// <summary>
+    /// From Rect
+    /// </summary>
+    /// <param name="rect">rect</param>
+    /// <returns><see cref="RECT"/></returns>
+    internal static RECT FromRect(Rect rect)
+    {
+        return new RECT
         {
-            Rect rect = new Rect();
+            top = DoubleToInt(rect.Y),
+            left = DoubleToInt(rect.X),
+            bottom = DoubleToInt(rect.Bottom),
+            right = DoubleToInt(rect.Right),
+        };
+    }
 
-            rect.X = rc.left;
-            rect.Y = rc.top;
-            rect.Width = rc.right - rc.left;
-            rect.Height = rc.bottom - rc.top;
-
-            return rect;
-        }
-
-        public static int DoubleToInt(double val)
+    /// <summary>
+    /// To Rect
+    /// </summary>
+    /// <param name="rc">rc</param>
+    /// <returns><see cref="Rect"/></returns>
+    internal static Rect ToRect(RECT rc)
+    {
+        return new Rect
         {
-            return (0 < val) ? (int)(val + 0.5) : (int)(val - 0.5);
-        }
+            X = rc.left,
+            Y = rc.top,
+            Width = rc.right - rc.left,
+            Height = rc.bottom - rc.top,
+        };
     }
 }

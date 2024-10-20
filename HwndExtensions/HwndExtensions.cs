@@ -1,87 +1,85 @@
 ﻿using System.Windows;
 using System.Windows.Input;
+
 using HwndExtensions.Adorner;
 
-namespace HwndExtensions
+namespace HwndExtensions;
+
+/// <summary>
+/// Hwnd Extensions
+/// </summary>
+public static class HwndExtensions
 {
-    public static class HwndExtensions
+    /// <summary>
+    /// Mouse Enter
+    /// </summary>
+    public static readonly RoutedEvent HwndMouseEnterEvent = EventManager.RegisterRoutedEvent(
+        "HwndMouseEnter",
+        RoutingStrategy.Bubble,
+        typeof(MouseEventHandler),
+        typeof(HwndExtensions));
+
+    /// <summary>
+    /// Mouse Leave
+    /// </summary>
+    public static readonly RoutedEvent HwndMouseLeaveEvent = EventManager.RegisterRoutedEvent(
+        "HwndMouseLeave",
+        RoutingStrategy.Bubble,
+        typeof(MouseEventHandler),
+        typeof(HwndExtensions));
+
+    /// <summary>
+    /// Adornment
+    /// </summary>
+    public static readonly DependencyProperty HwndAdornmentProperty = DependencyProperty.RegisterAttached(
+        "HwndAdornment", typeof(UIElement), typeof(HwndExtensions), new UIPropertyMetadata(null, OnAdornmentAttached));
+
+    private static readonly DependencyProperty HwndAdornerProperty = DependencyProperty.RegisterAttached(
+        "HwndAdorner", typeof(HwndAdorner), typeof(HwndExtensions), new PropertyMetadata(null));
+
+    public static void SetHwndAdornment(DependencyObject? element, UIElement? value)
     {
-        #region Mouse Enter / Leave
+        element?.SetValue(HwndAdornmentProperty, value);
+    }
 
-        public static readonly RoutedEvent HwndMouseEnterEvent = EventManager.RegisterRoutedEvent(
-            "HwndMouseEnter", 
-            RoutingStrategy.Bubble, 
-            typeof(MouseEventHandler),
-            typeof(HwndExtensions));
+    public static UIElement? GetHwndAdornment(DependencyObject? element)
+    {
+        return element?.GetValue(HwndAdornmentProperty) as UIElement;
+    }
 
-        public static readonly RoutedEvent HwndMouseLeaveEvent = EventManager.RegisterRoutedEvent(
-            "HwndMouseLeave", 
-            RoutingStrategy.Bubble, 
-            typeof(MouseEventHandler),
-            typeof(HwndExtensions));
+    private static void SetHwndAdorner(DependencyObject element, HwndAdorner? value)
+    {
+        element.SetValue(HwndAdornerProperty, value);
+    }
 
-        #endregion
+    private static HwndAdorner? GetHwndAdorner(DependencyObject element)
+    {
+        return element.GetValue(HwndAdornerProperty) as HwndAdorner;
+    }
 
-        #region Attached HwndAdornment
-
-        // Manages an adornment over any FrameworkElement through a private attached property
-        // containning the HwndAdorner instance which will present the adornment over hwnd's
-
-        private static readonly DependencyProperty HwndAdornerProperty = DependencyProperty.RegisterAttached(
-            "HwndAdorner", typeof (HwndAdorner), typeof (HwndExtensions), new PropertyMetadata(null));
-
-        private static void SetHwndAdorner(DependencyObject element, HwndAdorner value)
+    private static void OnAdornmentAttached(DependencyObject d, DependencyPropertyChangedEventArgs args)
+    {
+        if (d is not FrameworkElement element)
         {
-            element.SetValue(HwndAdornerProperty, value);
+            return;
         }
 
-        private static HwndAdorner GetHwndAdorner(DependencyObject element)
+        var adorner = GetHwndAdorner(element);
+
+        if (args.NewValue is UIElement adornment)
         {
-            return (HwndAdorner)element.GetValue(HwndAdornerProperty);
-        }
-
-        public static readonly DependencyProperty HwndAdornmentProperty = DependencyProperty.RegisterAttached(
-            "HwndAdornment", typeof (UIElement), typeof (HwndExtensions), new UIPropertyMetadata(null, OnAdornmentAttached));
-
-        public static void SetHwndAdornment(DependencyObject element, UIElement value)
-        {
-            element.SetValue(HwndAdornmentProperty, value);
-        }
-
-        public static UIElement GetHwndAdornment(DependencyObject element)
-        {
-            return (UIElement) element.GetValue(HwndAdornmentProperty);
-        }
-
-        private static void OnAdornmentAttached(DependencyObject d, DependencyPropertyChangedEventArgs args)
-        {
-            var element = d as FrameworkElement;
-            if(element == null) return;
-
-            UIElement adornment = (UIElement) args.NewValue;
-
-            var adorner = GetHwndAdorner(element);
-
-            if (adornment != null)
+            if (adorner == null)
             {
-                if (adorner == null)
-                {
-                    SetHwndAdorner(element, adorner = new HwndAdorner(element));
-                }
-
-                adorner.Adornment = adornment;
+                SetHwndAdorner(element, adorner = new HwndAdorner(element));
             }
 
-            else
-            {
-                if (adorner != null)
-                {
-                    adorner.Dispose();
-                    SetHwndAdorner(element, null);
-                }
-            }
+            adorner.Adornment = adornment;
         }
+        else if (adorner != null)
+        {
+            adorner.Dispose();
 
-        #endregion
+            SetHwndAdorner(element, default);
+        }
     }
 }
